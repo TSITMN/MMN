@@ -53,7 +53,7 @@ def read_imgs(train_image):
     for img_path in train_image:
         # img
         img = Image.open(img_path)
-        img = img.resize((fix_image_width, fix_image_height), Image.ANTIALIAS)
+        img = img.resize((fix_image_width, fix_image_height), Image.Resampling.LANCZOS)
         pix_array = np.array(img)
 
         train_img.append(pix_array) 

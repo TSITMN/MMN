@@ -47,7 +47,7 @@ class RegDBData(data.Dataset):
         for i in range(len(color_img_file)):
    
             img = Image.open(data_dir+ color_img_file[i])
-            img = img.resize((192, 384), Image.ANTIALIAS)
+            img = img.resize((192, 384), Image.Resampling.LANCZOS)
             pix_array = np.array(img)
             train_color_image.append(pix_array)
         train_color_image = np.array(train_color_image) 
@@ -55,7 +55,7 @@ class RegDBData(data.Dataset):
         train_thermal_image = []
         for i in range(len(thermal_img_file)):
             img = Image.open(data_dir+ thermal_img_file[i])
-            img = img.resize((192, 384), Image.ANTIALIAS)
+            img = img.resize((192, 384), Image.Resampling.LANCZOS)
             pix_array = np.array(img)
             train_thermal_image.append(pix_array)
         train_thermal_image = np.array(train_thermal_image)
@@ -91,7 +91,7 @@ class TestData(data.Dataset):
         test_image = []
         for i in range(len(test_img_file)):
             img = Image.open(test_img_file[i])
-            img = img.resize((img_size[0], img_size[1]), Image.ANTIALIAS)
+            img = img.resize((img_size[0], img_size[1]), Image.Resampling.LANCZOS)
             pix_array = np.array(img)
             test_image.append(pix_array)
         test_image = np.array(test_image)
@@ -113,7 +113,7 @@ class TestDataOld(data.Dataset):
         test_image = []
         for i in range(len(test_img_file)):
             img = Image.open(data_dir + test_img_file[i])
-            img = img.resize((img_size[0], img_size[1]), Image.ANTIALIAS)
+            img = img.resize((img_size[0], img_size[1]), Image.Resampling.LANCZOS)
             pix_array = np.array(img)
             test_image.append(pix_array)
         test_image = np.array(test_image)

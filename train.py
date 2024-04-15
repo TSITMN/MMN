@@ -30,9 +30,9 @@ parser.add_argument('--model_path', default='save_model/', type=str, help='model
 parser.add_argument('--save_epoch', default=20, type=int, metavar='s', help='save model every 10 epochs')
 parser.add_argument('--log_path', default='log/', type=str, help='log save path')
 parser.add_argument('--vis_log_path', default='log/vis_log/', type=str, help='log save path')
-parser.add_argument('--workers', default=4, type=int, metavar='N', help='number of data loading workers (default: 4)')
-parser.add_argument('--img_w', default=192, type=int, metavar='imgw', help='img width')
-parser.add_argument('--img_h', default=384, type=int, metavar='imgh', help='img height')
+parser.add_argument('--workers', default=7, type=int, metavar='N', help='number of data loading workers (default: 4)')
+parser.add_argument('--img_w', default=164, type=int, metavar='imgw', help='img width')
+parser.add_argument('--img_h', default=308, type=int, metavar='imgh', help='img height')
 parser.add_argument('--batch-size', default=4, type=int, metavar='B', help='training batch size')
 parser.add_argument('--test-batch', default=64, type=int, metavar='tb', help='testing batch size')
 parser.add_argument('--method', default='agw', type=str, metavar='m', help='method type: base or agw')
@@ -410,8 +410,9 @@ for epoch in range(start_epoch, 81 - start_epoch):
 
     loader_batch = args.batch_size * args.num_pos
 
+    #pin_memory=True
     trainloader = data.DataLoader(trainset, batch_size=loader_batch, \
-                                  sampler=sampler, num_workers=args.workers, drop_last=True)
+                                  sampler=sampler, num_workers=args.workers, drop_last=True , pin_memory=True)
 
     # training
     train(epoch)
