@@ -56,7 +56,8 @@ def read_imgs(train_image):
         img = img.resize((fix_image_width, fix_image_height), Image.Resampling.LANCZOS)
         pix_array = np.array(img)
 
-        train_img.append(pix_array) 
+        #输出图片大小
+        # print(pix_array.shape , img_path[-13:-9])
         
         # label
         pid = int(img_path[-13:-9])
