@@ -66,10 +66,12 @@ def read_imgs(train_image):
        
 # rgb imges
 train_img, train_label = read_imgs(files_rgb)
+print(train_img[0] , train_img[0].shape)
 np.save(data_path + 'train_rgb_resized_img.npy', train_img)
 np.save(data_path + 'train_rgb_resized_label.npy', train_label)
 
 # ir imges
 train_img, train_label = read_imgs(files_ir)
+print(train_img[0] , train_img[0].shape)
 np.save(data_path + 'train_ir_resized_img.npy', train_img)
 np.save(data_path + 'train_ir_resized_label.npy', train_label)
