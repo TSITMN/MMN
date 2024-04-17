@@ -4,14 +4,21 @@ import torch.utils.data as data
 
 
 class SYSUData(data.Dataset):
-    def __init__(self, data_dir,  transform=None, colorIndex = None, thermalIndex = None):
-        
-        # Load training images (path) and labels
-        train_color_image = np.load(data_dir + 'train_rgb_resized_img.npy')
-        self.train_color_label = np.load(data_dir + 'train_rgb_resized_label.npy')
+    def __init__(self, data_dir,  transform=None, colorIndex = None, thermalIndex = None , model_test = False):
+        if not model_test:
+            # Load training images (path) and labels
+            train_color_image = np.load(data_dir + 'train_rgb_resized_img.npy')
+            self.train_color_label = np.load(data_dir + 'train_rgb_resized_label.npy')
 
-        train_thermal_image = np.load(data_dir + 'train_ir_resized_img.npy')
-        self.train_thermal_label = np.load(data_dir + 'train_ir_resized_label.npy')
+            train_thermal_image = np.load(data_dir + 'train_ir_resized_img.npy')
+            self.train_thermal_label = np.load(data_dir + 'train_ir_resized_label.npy')
+        else :
+            print("model_testing")
+            train_color_image = np.load(data_dir + 'subset_train_rgb_resized_img.npy')
+            self.train_color_label = np.load(data_dir + 'subset_train_rgb_resized_label.npy')
+
+            train_thermal_image = np.load(data_dir + 'subset_train_ir_resized_img.npy')
+            self.train_thermal_label = np.load(data_dir + 'subset_train_ir_resized_label.npy')
         
         # BGR to RGB
         self.train_color_image   = train_color_image
@@ -138,9 +145,23 @@ def load_data(input_data_path ):
     return file_image, file_label
 
 if __name__ == "__main__":
-    train_color_image = np.load('Datasets/SYSU-MM01/train_rgb_resized_img.npy')
-    print(train_color_image[1].shape)
-    print(train_color_image[1])
-    train_ir_image = np.load('Datasets/SYSU-MM01/train_ir_resized_img.npy')
-    print(train_ir_image[1].shape)
-    print(train_ir_image[1])
+    data_dir = "./Datasets/SYSU-MM01/"
+    # 加载 RGB 图像和标签数据
+    train_rgb_resized_img = np.load(data_dir + 'train_rgb_resized_img.npy')
+    train_rgb_resized_label = np.load(data_dir + 'train_rgb_resized_label.npy')
+
+    # 加载 IR 图像和标签数据
+    train_ir_resized_img = np.load(data_dir + 'train_ir_resized_img.npy')
+    train_ir_resized_label = np.load(data_dir + 'train_ir_resized_label.npy')
+
+    # 从每个数据集中按顺序取20个数据点
+    rgb_images_subset = train_rgb_resized_img[:20]
+    rgb_labels_subset = train_rgb_resized_label[:20]
+    ir_images_subset = train_ir_resized_img[:20]
+    ir_labels_subset = train_ir_resized_label[:20]
+
+    # 保存到新的文件中
+    np.save(data_dir + 'subset_train_rgb_resized_img.npy', rgb_images_subset)
+    np.save(data_dir + 'subset_train_rgb_resized_label.npy', rgb_labels_subset)
+    np.save(data_dir + 'subset_train_ir_resized_img.npy', ir_images_subset)
+    np.save(data_dir + 'subset_train_ir_resized_label.npy', ir_labels_subset)

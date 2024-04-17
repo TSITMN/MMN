@@ -186,10 +186,13 @@ class embed_net(nn.Module):
 
         self.visible_module = FeatureExtractor('visible', arch=arch)
         self.thermal_module = FeatureExtractor('thermal', arch=arch)
+        # self.cbam = CBAM(in_channel=3)
         self.base_resnet = base_resnet(arch=arch)
+
         self.encoder1 = Encoder(3, 1)
         self.encoder2 = Encoder(3, 1)
         self.decoder = Decoder(1, 3)  
+        
         self.l2norm = Normalize(2)     
         self.avgpool = nn.AdaptiveAvgPool2d((1, 1))
 
@@ -205,20 +208,23 @@ class embed_net(nn.Module):
             classifier = nn.Linear(pool_dim, class_num, bias=False)
             classifier.apply(weights_init_classifier)
             self.classifiers.append(classifier)
-
+            
     def forward(self, x1, x2):
+
         gray1 = self.encoder1(x1)
         gray2 = self.encoder2(x2)
-        gray = torch.cat((gray1, gray2), dim=1)
+        gray = torch.cat((gray1, gray2), dim=0)
         gray = self.decoder(gray)
 
-        # Processing with visible and thermal modules
-        x1 = self.visible_module(torch.cat((x1, gray), dim=1))
-        x2 = self.thermal_module(torch.cat((x2, gray), dim=1))
+        gray1, gray2 = torch.chunk(gray, 2, 0)
+        
+        # # Processing with visible and thermal modules
+        x1 = self.visible_module(torch.cat((x1, gray1), dim=0))
+        x2 = self.thermal_module(torch.cat((x2, gray2), dim=0))
 
-        # Apply CBAM
-        x1 = self.cbam(x1)
-        x2 = self.cbam(x2)
+        # # Apply CBAM
+        # # x1 = self.cbam(x1)
+        # # x2 = self.cbam(x2)
 
         xo = torch.cat((x1, x2), 0)
         # Concatenate the outputs
@@ -230,7 +236,7 @@ class embed_net(nn.Module):
         x_parts = torch.chunk(x, 4, 2)
     
         x_parts = [self.avgpool(x_part) for x_part in x_parts]
-        x_parts = [x_part.view(x_part.size(0), -1) for x_part in x_parts] 
+        x_parts = [x_part.view(x_part.size(0), x_part.size(1)) for x_part in x_parts] 
         feats = [self.bottlenecks[i](x_parts[i]) for i in range(4)]
         outputs = [self.classifiers[i](feats[i]) for i in range(4)]
 
