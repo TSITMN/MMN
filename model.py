@@ -209,26 +209,32 @@ class embed_net(nn.Module):
             classifier.apply(weights_init_classifier)
             self.classifiers.append(classifier)
             
-    def forward(self, x1, x2):
+    def forward(self, x1, x2 , modal=0):
+        if modal == 0:
+            gray1 = self.encoder1(x1)
+            gray2 = self.encoder2(x2)
+            gray = torch.cat((gray1, gray2), dim=0)
+            gray = self.decoder(gray)
 
-        gray1 = self.encoder1(x1)
-        gray2 = self.encoder2(x2)
-        gray = torch.cat((gray1, gray2), dim=0)
-        gray = self.decoder(gray)
+            gray1, gray2 = torch.chunk(gray, 2, 0)
+            
+            # # Processing with visible and thermal modules
+            x1 = self.visible_module(torch.cat((x1, gray1), dim=0))
+            x2 = self.thermal_module(torch.cat((x2, gray2), dim=0))
 
-        gray1, gray2 = torch.chunk(gray, 2, 0)
-        
-        # # Processing with visible and thermal modules
-        x1 = self.visible_module(torch.cat((x1, gray1), dim=0))
-        x2 = self.thermal_module(torch.cat((x2, gray2), dim=0))
+            # # Apply CBAM
+            # # x1 = self.cbam(x1)
+            # # x2 = self.cbam(x2)
 
-        # # Apply CBAM
-        # # x1 = self.cbam(x1)
-        # # x2 = self.cbam(x2)
-
-        xo = torch.cat((x1, x2), 0)
-        # Concatenate the outputs
-        x = torch.cat((x1, x2), dim=0)
+            xo = torch.cat((x1, x2), 0)
+            # Concatenate the outputs
+            x = torch.cat((x1, x2), dim=0)
+        if modal == 1:
+            gray1 = self.encoder1(x1)
+            x = self.visible_module(torch.cat((x1, gray1), dim=0))
+        elif modal == 2:
+            gray2 = self.encoder2(x2)
+            x = self.thermal_module(torch.cat((x2, gray2), dim=0))
 
         # shared block
         x = self.base_resnet(x)

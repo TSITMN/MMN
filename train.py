@@ -35,7 +35,7 @@ parser.add_argument('--vis_log_path', default='log/vis_log/', type=str, help='lo
 parser.add_argument('--workers', default=7, type=int, metavar='N', help='number of data loading workers (default: 4)')
 parser.add_argument('--img_w', default=192, type=int, metavar='imgw', help='img width')
 parser.add_argument('--img_h', default=384, type=int, metavar='imgh', help='img height')
-parser.add_argument('--batch-size', default=2, type=int, metavar='B', help='training batch size')
+parser.add_argument('--batch-size', default=3, type=int, metavar='B', help='training batch size')
 parser.add_argument('--test-batch', default=64, type=int, metavar='tb', help='testing batch size')
 parser.add_argument('--method', default='agw', type=str, metavar='m', help='method type: base or agw')
 parser.add_argument('--margin', default=0.3, type=float, metavar='margin', help='triplet loss margin')
@@ -371,17 +371,31 @@ def test(epoch):
     XXdistmat_att = np.matmul(Xquery_feat_att, np.transpose(Xgall_feat_att))
     # evaluation
 
-    cmc, mAP, mINP = eval_regdb(-distmat, query_label, gall_label)
-    cmc_att, mAP_att, mINP_att = eval_regdb(-distmat_att, query_label, gall_label)
+    if args.dataset == 'regdb':
+        cmc, mAP, mINP = eval_data(-distmat, query_label, gall_label)
+        cmc_att, mAP_att, mINP_att = eval_data(-distmat_att, query_label, gall_label)
 
-    Xcmc, XmAP, XmINP = eval_regdb(-Xdistmat, query_label, gall_label)
-    Xcmc_att, XmAP_att, XmINP_att = eval_regdb(-Xdistmat_att, query_label, gall_label)
+        Xcmc, XmAP, XmINP = eval_data(-Xdistmat, query_label, gall_label)
+        Xcmc_att, XmAP_att, XmINP_att = eval_data(-Xdistmat_att, query_label, gall_label)
 
-    cmcX, mAPX, mINPX = eval_regdb(-distmatX, query_label, gall_label)
-    cmc_attX, mAP_attX, mINP_attX = eval_regdb(-distmat_attX, query_label, gall_label)
+        cmcX, mAPX, mINPX = eval_data(-distmatX, query_label, gall_label)
+        cmc_attX, mAP_attX, mINP_attX = eval_data(-distmat_attX, query_label, gall_label)
 
-    XXcmc, XXmAP, XXmINP = eval_regdb(-XXdistmat, query_label, gall_label)
-    XXcmc_att, XXmAP_att, XXmINP_att = eval_regdb(-XXdistmat_att, query_label, gall_label)
+        XXcmc, XXmAP, XXmINP = eval_data(-XXdistmat, query_label, gall_label)
+        XXcmc_att, XXmAP_att, XXmINP_att = eval_data(-XXdistmat_att, query_label, gall_label)
+    else :
+        cmc, mAP, mINP = eval_data(-distmat, query_label, gall_label , q_camids=query_cam , g_camids=gall_cam)
+        cmc_att, mAP_att, mINP_att = eval_data(-distmat_att, query_label, gall_label, q_camids=query_cam , g_camids=gall_cam)
+
+        Xcmc, XmAP, XmINP = eval_data(-Xdistmat, query_label, gall_label, q_camids=query_cam , g_camids=gall_cam)
+        Xcmc_att, XmAP_att, XmINP_att = eval_data(-Xdistmat_att, query_label, gall_label, q_camids=query_cam , g_camids=gall_cam)
+
+        cmcX, mAPX, mINPX = eval_data(-distmatX, query_label, gall_label, q_camids=query_cam , g_camids=gall_cam)
+        cmc_attX, mAP_attX, mINP_attX = eval_data(-distmat_attX, query_label, gall_label, q_camids=query_cam , g_camids=gall_cam)
+
+        XXcmc, XXmAP, XXmINP = eval_data(-XXdistmat, query_label, gall_label, q_camids=query_cam , g_camids=gall_cam)
+        XXcmc_att, XXmAP_att, XXmINP_att = eval_data(-XXdistmat_att, query_label, gall_label, q_camids=query_cam , g_camids=gall_cam)
+
     print('Evaluation Time:\t {:.3f}'.format(time.time() - start))
 
     return cmc, mAP, mINP, cmc_att, mAP_att, mINP_att, \
