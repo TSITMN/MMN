@@ -100,36 +100,13 @@ class embed_net(nn.Module):
     def __init__(self,  class_num, no_local= 'on', gm_pool = 'on', arch='resnet50'):
         super(embed_net, self).__init__()
 
-        self.thermal_module = thermal_module(arch=arch)
-        self.visible_module = visible_module(arch=arch)
+        self.visible_module = FeatureExtractor('visible', arch=arch)
+        self.thermal_module = FeatureExtractor('thermal', arch=arch)
         self.base_resnet = base_resnet(arch=arch)
-
-        pool_dim = 2048
-        self.l2norm = Normalize(2)        
-        self.bottleneck1 = nn.BatchNorm1d(pool_dim)
-        self.bottleneck1.bias.requires_grad_(False)  # no shift
-        self.bottleneck1.apply(weights_init_kaiming)
-        self.classifier1 = nn.Linear(pool_dim, class_num, bias=False)
-        self.classifier1.apply(weights_init_classifier)
-        
-        self.bottleneck2 = nn.BatchNorm1d(pool_dim)
-        self.bottleneck2.bias.requires_grad_(False)  # no shift
-        self.bottleneck2.apply(weights_init_kaiming)
-        self.classifier2 = nn.Linear(pool_dim, class_num, bias=False)
-        self.classifier2.apply(weights_init_classifier)
-        
-        self.bottleneck3 = nn.BatchNorm1d(pool_dim)
-        self.bottleneck3.bias.requires_grad_(False)  # no shift
-        self.bottleneck3.apply(weights_init_kaiming)
-        self.classifier3 = nn.Linear(pool_dim, class_num, bias=False)
-        self.classifier3.apply(weights_init_classifier)
-        
-        self.bottleneck4 = nn.BatchNorm1d(pool_dim)
-        self.bottleneck4.bias.requires_grad_(False)  # no shift
-        self.bottleneck4.apply(weights_init_kaiming)
-        self.classifier4 = nn.Linear(pool_dim, class_num, bias=False)
-        self.classifier4.apply(weights_init_classifier)
-        
+        self.encoder1 = Encoder(3, 1)
+        self.encoder2 = Encoder(3, 1)
+        self.decoder = Decoder(1, 3)  
+        self.l2norm = Normalize(2)     
         self.avgpool = nn.AdaptiveAvgPool2d((1, 1))
         self.encode1 = nn.Conv2d(3, 1, 1)
         self.encode1.apply(my_weights_init)
@@ -158,49 +135,34 @@ class embed_net(nn.Module):
             gray2 = F.relu(self.encode2(x2))
             gray2 = self.bn2(F.relu(self.fc2(gray2)))            
             
-            gray = F.relu(self.decode(torch.cat((gray1, gray2),0)))
-            
-            gray1, gray2 = torch.chunk(gray, 2, 0)
-            xo = torch.cat((x1, x2), 0)
+            classifier = nn.Linear(pool_dim, class_num, bias=False)
+            classifier.apply(weights_init_classifier)
+            self.classifiers.append(classifier)
 
-            x1 = self.visible_module(torch.cat((x1, gray1),0))
-            x2 = self.thermal_module(torch.cat((x2, gray2),0))
+    def forward(self, x1, x2):
+        gray1 = self.encoder1(x1)
+        gray2 = self.encoder2(x2)
+        gray = torch.cat((gray1, gray2), dim=1)
+        gray = self.decoder(gray)
 
-            x = torch.cat((x1, x2), 0)
-        elif modal == 1:
-            gray1 = F.relu(self.encode1(x1))
-            gray1 = self.bn1(F.relu(self.fc1(gray1)))
-            gray1 = F.relu(self.decode(gray1))
+        # Processing with visible and thermal modules
+        x1 = self.visible_module(torch.cat((x1, gray), dim=1))
+        x2 = self.thermal_module(torch.cat((x2, gray), dim=1))
 
-            x = self.visible_module(torch.cat((x1, gray1),0))
-        elif modal == 2:
-            gray2 = F.relu(self.encode2(x2))
-            gray2 = self.bn2(F.relu(self.fc2(gray2)))
-            gray2 = F.relu(self.decode(gray2))
-
-            x = self.thermal_module(torch.cat((x2, gray2),0))
+        # Apply CBAM
+        x1 = self.cbam(x1)
+        x2 = self.cbam(x2)
 
 
         # shared block
-        x = self.base_resnet.base.layer1(x)
-        x = self.base_resnet.base.layer2(x)
-        x = self.base_resnet.base.layer3(x)
-        x = self.base_resnet.base.layer4(x)
-        x41, x42, x43, x44 = torch.chunk(x, 4, 2)
-        
-        x41 = self.avgpool(x41)
-        x42 = self.avgpool(x42)
-        x43 = self.avgpool(x43)
-        x44 = self.avgpool(x44)
-        x41 = x41.view(x41.size(0), x41.size(1))
-        x42 = x42.view(x42.size(0), x42.size(1))
-        x43 = x43.view(x43.size(0), x43.size(1))
-        x44 = x44.view(x44.size(0), x44.size(1))
+        x = self.base_resnet(x)
 
-        feat41 = self.bottleneck1(x41)
-        feat42 = self.bottleneck2(x42)
-        feat43 = self.bottleneck3(x43)
-        feat44 = self.bottleneck4(x44)
+        x_parts = torch.chunk(x, 4, 2)
+    
+        x_parts = [self.avgpool(x_part) for x_part in x_parts]
+        x_parts = [x_part.view(x_part.size(0), -1) for x_part in x_parts] 
+        feats = [self.bottlenecks[i](x_parts[i]) for i in range(4)]
+        outputs = [self.classifiers[i](feats[i]) for i in range(4)]
 
         if self.training:
             return x41, x42, x43, x44, self.classifier1(feat41), self.classifier2(feat42), self.classifier3(feat43), self.classifier4(feat44), [xo, gray]

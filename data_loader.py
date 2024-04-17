@@ -9,7 +9,14 @@ class SYSUData(data.Dataset):
         # Load training images (path) and labels
         train_color_image = np.load(data_dir + 'train_rgb_resized_img.npy')
         self.train_color_label = np.load(data_dir + 'train_rgb_resized_label.npy')
+    def __init__(self, data_dir,  transform=None, colorIndex = None, thermalIndex = None):
+        
+        # Load training images (path) and labels
+        train_color_image = np.load(data_dir + 'train_rgb_resized_img.npy')
+        self.train_color_label = np.load(data_dir + 'train_rgb_resized_label.npy')
 
+        train_thermal_image = np.load(data_dir + 'train_ir_resized_img.npy')
+        self.train_thermal_label = np.load(data_dir + 'train_ir_resized_label.npy')
         train_thermal_image = np.load(data_dir + 'train_ir_resized_img.npy')
         self.train_thermal_label = np.load(data_dir + 'train_ir_resized_label.npy')
         
@@ -136,3 +143,25 @@ def load_data(input_data_path ):
         file_label = [int(s.split(' ')[1]) for s in data_file_list]
         
     return file_image, file_label
+
+if __name__ == "__main__":
+    data_dir = "./Datasets/SYSU-MM01/"
+    # 加载 RGB 图像和标签数据
+    train_rgb_resized_img = np.load(data_dir + 'train_rgb_resized_img.npy')
+    train_rgb_resized_label = np.load(data_dir + 'train_rgb_resized_label.npy')
+
+    # 加载 IR 图像和标签数据
+    train_ir_resized_img = np.load(data_dir + 'train_ir_resized_img.npy')
+    train_ir_resized_label = np.load(data_dir + 'train_ir_resized_label.npy')
+
+    # 从每个数据集中按顺序取20个数据点
+    rgb_images_subset = train_rgb_resized_img[:20]
+    rgb_labels_subset = train_rgb_resized_label[:20]
+    ir_images_subset = train_ir_resized_img[:20]
+    ir_labels_subset = train_ir_resized_label[:20]
+
+    # 保存到新的文件中
+    np.save(data_dir + 'subset_train_rgb_resized_img.npy', rgb_images_subset)
+    np.save(data_dir + 'subset_train_rgb_resized_label.npy', rgb_labels_subset)
+    np.save(data_dir + 'subset_train_ir_resized_img.npy', ir_images_subset)
+    np.save(data_dir + 'subset_train_ir_resized_label.npy', ir_labels_subset)
