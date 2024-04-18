@@ -54,6 +54,8 @@ class RegDBData(data.Dataset):
         for i in range(len(color_img_file)):
    
             img = Image.open(data_dir+ color_img_file[i])
+            # 修改成和版本没有关系的 ， img = img.resize((192, 384), Image.Resampling.LANCZOS)
+
             img = img.resize((192, 384), Image.Resampling.LANCZOS)
             pix_array = np.array(img)
             train_color_image.append(pix_array)
