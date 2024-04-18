@@ -3,6 +3,7 @@ import torch.nn as nn
 from torch.nn import init
 from resnet import resnet50, resnet18
 import torch.nn.functional as F
+from resnest.torch import resnest50
 
 class Normalize(nn.Module):
     def __init__(self, power=2):
@@ -52,6 +53,20 @@ class base_resnet(nn.Module):
         self.base = model_base
 
     def forward(self, x):
+        x = self.base.layer1(x)
+        x = self.base.layer2(x)
+        x = self.base.layer3(x)
+        x = self.base.layer4(x)
+        return x
+
+class base_resnest(nn.Module):
+    def __init__(self):
+        super(base_resnest,self).__init__()
+        model_base = resnest50(pretrained=True)
+        model_base.avgpool = nn.AdaptiveAvgPool2d((1, 1))
+        self.base = model_base
+    
+    def forward(self , x):
         x = self.base.layer1(x)
         x = self.base.layer2(x)
         x = self.base.layer3(x)
@@ -149,7 +164,8 @@ class embed_net(nn.Module):
         self.visible_module = FeatureExtractor('visible', arch=arch)
         self.thermal_module = FeatureExtractor('thermal', arch=arch)
         # self.cbam = CBAM(in_channel=3)
-        self.base_resnet = base_resnet(arch=arch)
+        # self.base_resnet = base_resnet(arch=arch)
+        self.resnest = base_resnest()
 
         self.encoder1 = Encoder(3, 1)
         self.encoder2 = Encoder(3, 1)
@@ -173,6 +189,7 @@ class embed_net(nn.Module):
 
     def forward(self, x1, x2 , modal=0):
         if modal == 0:
+            xo = torch.cat((x1, x2), 0)
             gray1 = self.encoder1(x1)
             gray2 = self.encoder2(x2)
             gray = torch.cat((gray1, gray2), dim=0)
@@ -184,11 +201,6 @@ class embed_net(nn.Module):
             x1 = self.visible_module(torch.cat((x1, gray1), dim=0))
             x2 = self.thermal_module(torch.cat((x2, gray2), dim=0))
 
-            # # Apply CBAM
-            # # x1 = self.cbam(x1)
-            # # x2 = self.cbam(x2)
-
-            xo = torch.cat((x1, x2), 0)
             # Concatenate the outputs
             x = torch.cat((x1, x2), dim=0)
         if modal == 1:
@@ -201,7 +213,8 @@ class embed_net(nn.Module):
             x = self.thermal_module(torch.cat((x2, gray2), dim=0))
 
         # shared block
-        x = self.base_resnet(x)
+        # x = self.base_resnet(x)
+        x = self.resnest(x)
 
         x_parts = torch.chunk(x, 4, 2)
 

@@ -245,6 +245,12 @@ def train(epoch):
     end = time.time()
 
     for batch_idx, (input1, input2, label1, label2) in enumerate(trainloader):
+        
+        # print(batch_idx)
+        # print(input1.shape)
+        # print(label1.shape)
+        # print(input1)
+        # print(label1)
 
         labels = torch.cat((label1, label1, label2, label2), 0)
 
