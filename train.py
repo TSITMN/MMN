@@ -12,12 +12,14 @@ import torchvision
 import torchvision.transforms as transforms
 from data_loader import SYSUData, RegDBData, TestData
 from data_manager import *
-from eval_metrics import eval_sysu, eval_regdb
+from eval_metrics import eval_sysu, eval_regdb , eval_data
 from model import embed_net
 from utils import *
 from loss import OriTripletLoss, TriLoss, DCLoss
 from tensorboardX import SummaryWriter
 from random_erasing import RandomErasing
+from itertools import chain
+
 
 parser = argparse.ArgumentParser(description='PyTorch Cross-Modality Training')
 parser.add_argument('--dataset', default='sysu', help='dataset name: regdb or sysu]')
@@ -33,16 +35,17 @@ parser.add_argument('--vis_log_path', default='log/vis_log/', type=str, help='lo
 parser.add_argument('--workers', default=7, type=int, metavar='N', help='number of data loading workers (default: 4)')
 parser.add_argument('--img_w', default=192, type=int, metavar='imgw', help='img width')
 parser.add_argument('--img_h', default=384, type=int, metavar='imgh', help='img height')
-parser.add_argument('--batch-size', default=4, type=int, metavar='B', help='training batch size')
+parser.add_argument('--batch-size', default=3, type=int, metavar='B', help='training batch size')
 parser.add_argument('--test-batch', default=64, type=int, metavar='tb', help='testing batch size')
 parser.add_argument('--method', default='agw', type=str, metavar='m', help='method type: base or agw')
 parser.add_argument('--margin', default=0.3, type=float, metavar='margin', help='triplet loss margin')
-parser.add_argument('--num_pos', default=4, type=int, help='num of pos per identity in each modality')
+parser.add_argument('--num_pos', default=2, type=int, help='num of pos per identity in each modality')
 parser.add_argument('--trial', default=1, type=int, metavar='t', help='trial (only for RegDB dataset)')
 parser.add_argument('--seed', default=0, type=int, metavar='t', help='random seed')
 parser.add_argument('--gpu', default='0', type=str, help='gpu device ids for CUDA_VISIBLE_DEVICES')
 parser.add_argument('--mode', default='all', type=str, help='all or indoor')
-parser.add_argument('--delta', default=0.2, type=float, metavar='delta', help='dcl weights, 0.2 for PCB, 0.5 for resnet50')
+parser.add_argument('--delta', default=0.5, type=float, metavar='delta', help='dcl weights, 0.2 for PCB, 0.5 for resnet50')
+parser.add_argument('--modeltest', default=False, type=int, help='model test')
 
 args = parser.parse_args()
 os.environ['CUDA_VISIBLE_DEVICES'] = args.gpu
@@ -115,7 +118,7 @@ transform_test = transforms.Compose([
 end = time.time()
 if dataset == 'sysu':
     # training set
-    trainset = SYSUData(data_path, transform=transform_train)
+    trainset = SYSUData(data_path, transform=transform_train , model_test = args.modeltest)
     # generate the idx of each person identity
     color_pos, thermal_pos = GenIdx(trainset.train_color_label, trainset.train_thermal_label)
 
@@ -188,30 +191,25 @@ criterion_id.to(device)
 criterion_tri.to(device)
 criterion_div.to(device)
 
-
 if args.optim == 'sgd':
-    ignored_params = list(map(id, net.bottleneck1.parameters())) \
-                     + list(map(id, net.bottleneck2.parameters())) \
-                     + list(map(id, net.bottleneck3.parameters())) \
-                     + list(map(id, net.bottleneck4.parameters())) \
-                     + list(map(id, net.classifier1.parameters())) \
-                     + list(map(id, net.classifier2.parameters())) \
-                     + list(map(id, net.classifier3.parameters())) \
-                     + list(map(id, net.classifier4.parameters()))
+    # 生成所有bottlenecks和classifiers的参数列表
+    ignored_params = list(map(id, chain(*[b.parameters() for b in net.bottlenecks]))) \
+                   + list(map(id, chain(*[c.parameters() for c in net.classifiers])))
 
+    # 通过过滤的方式，排除上述特定层的参数，获取基础参数
     base_params = filter(lambda p: id(p) not in ignored_params, net.parameters())
 
+    # 定义优化器，为不同的参数组设置不同的学习率
     optimizer = optim.SGD([
-        {'params': base_params, 'lr': 0.1 * args.lr},
-        {'params': net.bottleneck1.parameters(), 'lr': args.lr},
-        {'params': net.bottleneck2.parameters(), 'lr': args.lr},
-        {'params': net.bottleneck3.parameters(), 'lr': args.lr},
-        {'params': net.bottleneck4.parameters(), 'lr': args.lr},
-        {'params': net.classifier1.parameters(), 'lr': args.lr},
-        {'params': net.classifier2.parameters(), 'lr': args.lr},
-        {'params': net.classifier3.parameters(), 'lr': args.lr},
-        {'params': net.classifier4.parameters(), 'lr': args.lr}],
-        weight_decay=5e-4, momentum=0.9, nesterov=True)
+        {'params': base_params, 'lr': 0.1 * args.lr},  # 基础参数，学习率较低
+        *[
+            {'params': b.parameters(), 'lr': args.lr} for b in net.bottlenecks
+        ],
+        *[
+            {'params': c.parameters(), 'lr': args.lr} for c in net.classifiers
+        ]
+    ], weight_decay=5e-4, momentum=0.9, nesterov=True)
+
 
 # exp_lr_scheduler = lr_scheduler.StepLR(optimizer, step_size=30, gamma=0.1)
 def adjust_learning_rate(optimizer, epoch):
@@ -373,17 +371,31 @@ def test(epoch):
     XXdistmat_att = np.matmul(Xquery_feat_att, np.transpose(Xgall_feat_att))
     # evaluation
 
-    cmc, mAP, mINP = eval_regdb(-distmat, query_label, gall_label)
-    cmc_att, mAP_att, mINP_att = eval_regdb(-distmat_att, query_label, gall_label)
+    if args.dataset == 'regdb':
+        cmc, mAP, mINP = eval_data(-distmat, query_label, gall_label)
+        cmc_att, mAP_att, mINP_att = eval_data(-distmat_att, query_label, gall_label)
 
-    Xcmc, XmAP, XmINP = eval_regdb(-Xdistmat, query_label, gall_label)
-    Xcmc_att, XmAP_att, XmINP_att = eval_regdb(-Xdistmat_att, query_label, gall_label)
+        Xcmc, XmAP, XmINP = eval_data(-Xdistmat, query_label, gall_label)
+        Xcmc_att, XmAP_att, XmINP_att = eval_data(-Xdistmat_att, query_label, gall_label)
 
-    cmcX, mAPX, mINPX = eval_regdb(-distmatX, query_label, gall_label)
-    cmc_attX, mAP_attX, mINP_attX = eval_regdb(-distmat_attX, query_label, gall_label)
+        cmcX, mAPX, mINPX = eval_data(-distmatX, query_label, gall_label)
+        cmc_attX, mAP_attX, mINP_attX = eval_data(-distmat_attX, query_label, gall_label)
 
-    XXcmc, XXmAP, XXmINP = eval_regdb(-XXdistmat, query_label, gall_label)
-    XXcmc_att, XXmAP_att, XXmINP_att = eval_regdb(-XXdistmat_att, query_label, gall_label)
+        XXcmc, XXmAP, XXmINP = eval_data(-XXdistmat, query_label, gall_label)
+        XXcmc_att, XXmAP_att, XXmINP_att = eval_data(-XXdistmat_att, query_label, gall_label)
+    else :
+        cmc, mAP, mINP = eval_data(-distmat, query_label, gall_label , q_camids=query_cam , g_camids=gall_cam)
+        cmc_att, mAP_att, mINP_att = eval_data(-distmat_att, query_label, gall_label, q_camids=query_cam , g_camids=gall_cam)
+
+        Xcmc, XmAP, XmINP = eval_data(-Xdistmat, query_label, gall_label, q_camids=query_cam , g_camids=gall_cam)
+        Xcmc_att, XmAP_att, XmINP_att = eval_data(-Xdistmat_att, query_label, gall_label, q_camids=query_cam , g_camids=gall_cam)
+
+        cmcX, mAPX, mINPX = eval_data(-distmatX, query_label, gall_label, q_camids=query_cam , g_camids=gall_cam)
+        cmc_attX, mAP_attX, mINP_attX = eval_data(-distmat_attX, query_label, gall_label, q_camids=query_cam , g_camids=gall_cam)
+
+        XXcmc, XXmAP, XXmINP = eval_data(-XXdistmat, query_label, gall_label, q_camids=query_cam , g_camids=gall_cam)
+        XXcmc_att, XXmAP_att, XXmINP_att = eval_data(-XXdistmat_att, query_label, gall_label, q_camids=query_cam , g_camids=gall_cam)
+
     print('Evaluation Time:\t {:.3f}'.format(time.time() - start))
 
     return cmc, mAP, mINP, cmc_att, mAP_att, mINP_att, \
@@ -418,6 +430,7 @@ for epoch in range(start_epoch, 81 - start_epoch):
     train(epoch)
 
     if epoch > 0 and epoch % 2 == 0:
+    # if True:
         print('Test Epoch: {}'.format(epoch))
     
         # testing
