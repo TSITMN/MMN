@@ -14,8 +14,6 @@ class Normalize(nn.Module):
         out = x.div(norm)
         return out
 
-
-# #####################################################################
 def weights_init_kaiming(m):
     classname = m.__class__.__name__
     # print(classname)
@@ -35,7 +33,6 @@ def weights_init_classifier(m):
         if m.bias:
             init.zeros_(m.bias.data)
 
-
 def my_weights_init(m):
     if isinstance(m, nn.Linear):
         nn.init.constant_(m.weight, 0.333)
@@ -43,41 +40,6 @@ def my_weights_init(m):
     if isinstance(m, nn.Conv2d):
         nn.init.constant_(m.weight, 0.333)
         nn.init.constant_(m.bias, 0.0)
-
-
-class visible_module(nn.Module):
-    def __init__(self, arch='resnet50'):
-        super(visible_module, self).__init__()
-
-        model_v = resnet50(pretrained=True,
-                           last_conv_stride=1, last_conv_dilation=1)
-        # avg pooling to global pooling
-        self.visible = model_v
-
-    def forward(self, x):
-        x = self.visible.conv1(x)
-        x = self.visible.bn1(x)
-        x = self.visible.relu(x)
-        x = self.visible.maxpool(x)
-        return x
-
-
-class thermal_module(nn.Module):
-    def __init__(self, arch='resnet50'):
-        super(thermal_module, self).__init__()
-
-        model_t = resnet50(pretrained=True,
-                           last_conv_stride=1, last_conv_dilation=1)
-        # avg pooling to global pooling
-        self.thermal = model_t
-
-    def forward(self, x):
-        x = self.thermal.conv1(x)
-        x = self.thermal.bn1(x)
-        x = self.thermal.relu(x)
-        x = self.thermal.maxpool(x)
-        return x
-
 
 class base_resnet(nn.Module):
     def __init__(self, arch='resnet50'):
@@ -192,7 +154,7 @@ class embed_net(nn.Module):
         self.encoder1 = Encoder(3, 1)
         self.encoder2 = Encoder(3, 1)
         self.decoder = Decoder(1, 3)  
-        
+
         self.l2norm = Normalize(2)     
         self.avgpool = nn.AdaptiveAvgPool2d((1, 1))
 
@@ -208,36 +170,44 @@ class embed_net(nn.Module):
             classifier = nn.Linear(pool_dim, class_num, bias=False)
             classifier.apply(weights_init_classifier)
             self.classifiers.append(classifier)
-            
-    def forward(self, x1, x2):
 
-        gray1 = self.encoder1(x1)
-        gray2 = self.encoder2(x2)
-        gray = torch.cat((gray1, gray2), dim=0)
-        gray = self.decoder(gray)
+    def forward(self, x1, x2 , modal=0):
+        if modal == 0:
+            gray1 = self.encoder1(x1)
+            gray2 = self.encoder2(x2)
+            gray = torch.cat((gray1, gray2), dim=0)
+            gray = self.decoder(gray)
 
-        gray1, gray2 = torch.chunk(gray, 2, 0)
-        
-        # # Processing with visible and thermal modules
-        x1 = self.visible_module(torch.cat((x1, gray1), dim=0))
-        x2 = self.thermal_module(torch.cat((x2, gray2), dim=0))
+            gray1, gray2 = torch.chunk(gray, 2, 0)
 
-        # # Apply CBAM
-        # # x1 = self.cbam(x1)
-        # # x2 = self.cbam(x2)
+            # # Processing with visible and thermal modules
+            x1 = self.visible_module(torch.cat((x1, gray1), dim=0))
+            x2 = self.thermal_module(torch.cat((x2, gray2), dim=0))
 
-        xo = torch.cat((x1, x2), 0)
-        # Concatenate the outputs
-        x = torch.cat((x1, x2), dim=0)
+            # # Apply CBAM
+            # # x1 = self.cbam(x1)
+            # # x2 = self.cbam(x2)
+
+            xo = torch.cat((x1, x2), 0)
+            # Concatenate the outputs
+            x = torch.cat((x1, x2), dim=0)
+        if modal == 1:
+            gray1 = self.encoder1(x1)
+            gray1 = self.decoder(gray1)
+            x = self.visible_module(torch.cat((x1, gray1), dim=0))
+        elif modal == 2:
+            gray2 = self.encoder2(x2)
+            gray2 = self.decoder(gray2)
+            x = self.thermal_module(torch.cat((x2, gray2), dim=0))
 
         # shared block
         x = self.base_resnet(x)
 
         x_parts = torch.chunk(x, 4, 2)
-    
+
         x_parts = [self.avgpool(x_part) for x_part in x_parts]
-        x_parts = [x_part.view(x_part.size(0), x_part.size(1)) for x_part in x_parts] 
-        feats = [self.bottlenecks[i](x_parts[i]) for i in range(4)]
+        x_parts = [x_part.view(x_part.size(0), x_part.size(1)) for x_part in x_parts]
+        feats   = [self.bottlenecks[i](x_parts[i]) for i in range(4)]
         outputs = [self.classifiers[i](feats[i]) for i in range(4)]
 
         if self.training:

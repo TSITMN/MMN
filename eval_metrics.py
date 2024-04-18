@@ -3,6 +3,13 @@ import numpy as np
 """Cross-Modality ReID"""
 import pdb
 
+def eval_data(distmat, q_pids, g_pids, **args):
+    if args is not None:
+        return eval_sysu(distmat, q_pids, g_pids, args.get('q_camids'), args.get('g_camids'))
+    else:
+        return eval_regdb(distmat, q_pids, g_pids)
+
+
 def eval_sysu(distmat, q_pids, g_pids, q_camids, g_camids, max_rank = 20):
     """Evaluation with sysu metric
     Key: for each query identity, its gallery images from the same camera view are discarded. "Following the original setting in ite dataset"
