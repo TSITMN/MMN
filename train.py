@@ -23,7 +23,7 @@ from itertools import chain
 
 parser = argparse.ArgumentParser(description='PyTorch Cross-Modality Training')
 parser.add_argument('--dataset', default='sysu', help='dataset name: regdb or sysu]')
-parser.add_argument('--lr', default=0.1 , type=float, help='learning rate, 0.00035 for adam')
+parser.add_argument('--lr', default=0.1 , type=float, help='learning rate 0.1 for sgd , 0.00035 for adam')
 parser.add_argument('--optim', default='sgd', type=str, help='optimizer')
 parser.add_argument('--arch', default='resnet50', type=str, help='network baseline:resnet18 or resnet50')
 parser.add_argument('--resume', '-r', default='', type=str, help='resume from checkpoint')
@@ -35,7 +35,7 @@ parser.add_argument('--vis_log_path', default='log/vis_log/', type=str, help='lo
 parser.add_argument('--workers', default=7, type=int, metavar='N', help='number of data loading workers (default: 4)')
 parser.add_argument('--img_w', default=192, type=int, metavar='imgw', help='img width')
 parser.add_argument('--img_h', default=384, type=int, metavar='imgh', help='img height')
-parser.add_argument('--batch-size', default=3, type=int, metavar='B', help='training batch size')
+parser.add_argument('--batch-size', default=8, type=int, metavar='B', help='training batch size')
 parser.add_argument('--test-batch', default=64, type=int, metavar='tb', help='testing batch size')
 parser.add_argument('--method', default='agw', type=str, metavar='m', help='method type: base or agw')
 parser.add_argument('--margin', default=0.3, type=float, metavar='margin', help='triplet loss margin')
@@ -210,6 +210,25 @@ if args.optim == 'sgd':
         ]
     ], weight_decay=5e-4, momentum=0.9, nesterov=True)
 
+
+if args.optim == 'adam':
+    # 生成所有bottlenecks和classifiers的参数列表
+    ignored_params = list(map(id, chain(*[b.parameters() for b in net.bottlenecks]))) \
+                   + list(map(id, chain(*[c.parameters() for c in net.classifiers])))
+
+    # 通过过滤的方式，排除上述特定层的参数，获取基础参数
+    base_params = filter(lambda p: id(p) not in ignored_params, net.parameters())
+
+    # 定义优化器，为不同的参数组设置不同的学习率
+    optimizer = optim.Adam([
+        {'params': base_params, 'lr': 0.1 * args.lr},  # 基础参数，学习率较低
+        *[
+            {'params': b.parameters(), 'lr': args.lr} for b in net.bottlenecks
+        ],
+        *[
+            {'params': c.parameters(), 'lr': args.lr} for c in net.classifiers
+        ]
+    ], weight_decay=5e-4)
 
 # exp_lr_scheduler = lr_scheduler.StepLR(optimizer, step_size=30, gamma=0.1)
 def adjust_learning_rate(optimizer, epoch):

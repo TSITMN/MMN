@@ -108,6 +108,35 @@ class CBAM(nn.Module):
         out = out.squeeze(0).permute(1, 2, 0) if len(x.shape) == 3 else out
         return out
 
+class Inception(nn.Module):
+    def __init__(self , input_channels , output_channels):
+        super(Inception , self).__init__()
+        self.conv11 = nn.Conv2d(input_channels , output_channels , kernel_size=1)
+        self.conv33 = nn.Conv2d(input_channels , output_channels , kernel_size=3 , padding = 1)
+        self.conv55 = nn.Conv2d(input_channels , output_channels , kernel_size=5 , padding = 2)
+        self.max_pool = nn.MaxPool2d(kernel_size=3, stride=1, padding=1)
+        self.apply(weights_init_kaiming)
+        self.bns = nn.ModuleList()
+        for i in range(4):
+            bn = nn.BatchNorm2d(output_channels)
+            bn.bias.requires_grad_(False)
+            bn.apply(weights_init_kaiming)
+            self.bns.append(bn)
+
+    def forward(self , x):
+        x11 = self.conv11(x)
+        x11 = F.relu(self.bns[0](x11))
+        x33 = self.conv33(x)
+        x33 = F.relu(self.bns[1](x33))
+        x55 = self.conv55(x)
+        x55 = F.relu(self.bns[2](x55))
+        xmp = self.max_pool(x)
+        xmp = F.relu(self.bns[3](xmp))
+
+        return torch.cat( (x11 , x33 , x55 , xmp) , dim=1)
+            
+
+
 class Encoder(nn.Module):
     def __init__(self, input_channels, output_channels):
         super(Encoder, self).__init__()
@@ -164,12 +193,17 @@ class embed_net(nn.Module):
         self.visible_module = FeatureExtractor('visible', arch=arch)
         self.thermal_module = FeatureExtractor('thermal', arch=arch)
         # self.cbam = CBAM(in_channel=3)
-        # self.base_resnet = base_resnet(arch=arch)
-        self.resnest = base_resnest()
+        self.base_resnet = base_resnet(arch=arch)
+        # self.resnest = base_resnest()
 
-        self.encoder1 = Encoder(3, 1)
-        self.encoder2 = Encoder(3, 1)
-        self.decoder = Decoder(1, 3)  
+        # self.encoder1 = Encoder(3, 1)
+        # self.encoder2 = Encoder(3, 1)
+        # self.decoder = Decoder(1, 3) 
+
+        self.encoder1= Inception(3 , 3)
+        self.encoder2 = Inception(3 , 3)
+        self.decoder = Decoder(12 , 3)
+
 
         self.l2norm = Normalize(2)     
         self.avgpool = nn.AdaptiveAvgPool2d((1, 1))
@@ -213,8 +247,8 @@ class embed_net(nn.Module):
             x = self.thermal_module(torch.cat((x2, gray2), dim=0))
 
         # shared block
-        # x = self.base_resnet(x)
-        x = self.resnest(x)
+        x = self.base_resnet(x)
+        # x = self.resnest(x)
 
         x_parts = torch.chunk(x, 4, 2)
 
