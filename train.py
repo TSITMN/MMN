@@ -216,14 +216,10 @@ if args.optim == 'sgd':
 
 
 if args.optim == 'adam':
-    # 生成所有bottlenecks和classifiers的参数列表
     ignored_params = list(map(id, chain(*[b.parameters() for b in net.bottlenecks]))) \
                    + list(map(id, chain(*[c.parameters() for c in net.classifiers])))
 
-    # 通过过滤的方式，排除上述特定层的参数，获取基础参数
     base_params = filter(lambda p: id(p) not in ignored_params, net.parameters())
-
-    # 定义优化器，为不同的参数组设置不同的学习率
     optimizer = optim.Adam([
         {'params': base_params, 'lr': 0.1 * args.lr},  # 基础参数，学习率较低
         *[
