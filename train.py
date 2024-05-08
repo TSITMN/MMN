@@ -19,7 +19,7 @@ from loss import OriTripletLoss, TriLoss, DCLoss
 from tensorboardX import SummaryWriter
 from random_erasing import RandomErasing
 from itertools import chain
-
+from datetime import datetime
 
 parser = argparse.ArgumentParser(description='PyTorch Cross-Modality Training')
 parser.add_argument('--dataset', default='sysu', help='dataset name: regdb or sysu]')
@@ -71,6 +71,10 @@ if not os.path.isdir(checkpoint_path):
 if not os.path.isdir(args.vis_log_path):
     os.makedirs(args.vis_log_path)
 
+def get_nowtime():
+    now = datetime.now()
+    return '_' + now.strftime("%y_%m_%d_%H_%M_%S")
+
 suffix = dataset
 if args.method=='agw':
     suffix = suffix + '_agw_p{}_n{}_lr_{}_seed_{}'.format(args.num_pos, args.batch_size, args.lr, args.seed)
@@ -84,9 +88,9 @@ if not args.optim == 'sgd':
 if dataset == 'regdb':
     suffix = suffix + '_trial_{}'.format(args.trial)
 
-sys.stdout = Logger(log_path + suffix + '_os.txt')
+sys.stdout = Logger(log_path + suffix + get_nowtime() + '_os.txt')
 
-vis_log_dir = args.vis_log_path + suffix + '/'
+vis_log_dir = args.vis_log_path + suffix + get_nowtime() +  '/'
 
 if not os.path.isdir(vis_log_dir):
     os.makedirs(vis_log_dir)
@@ -474,7 +478,7 @@ for epoch in range(start_epoch, 81 - start_epoch):
                 'mINP': mINP_att,
                 'epoch': epoch,
             }
-            torch.save(state, checkpoint_path + suffix + '_best.t')
+            torch.save(state, checkpoint_path + suffix + get_nowtime() + '_best.t')
     
         # save model
         if epoch > 10 and epoch % args.save_epoch == 0:
@@ -484,7 +488,7 @@ for epoch in range(start_epoch, 81 - start_epoch):
                 'mAP': mAP,
                 'epoch': epoch,
             }
-            torch.save(state, checkpoint_path + suffix + '_epoch_{}.t'.format(epoch))
+            torch.save(state, checkpoint_path + suffix + get_nowtime() + '_epoch_{}.t'.format(epoch))
     
         print('POOL:   Rank-1: {:.2%} | Rank-5: {:.2%} | Rank-10: {:.2%}| Rank-20: {:.2%}| mAP: {:.2%}| mINP: {:.2%}'.format(
             cmc[0], cmc[4], cmc[9], cmc[19], mAP, mINP))

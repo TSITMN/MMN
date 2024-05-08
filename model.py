@@ -196,13 +196,13 @@ class embed_net(nn.Module):
         self.base_resnet = base_resnet(arch=arch)
         # self.resnest = base_resnest()
 
-        # self.encoder1 = Encoder(3, 1)
-        # self.encoder2 = Encoder(3, 1)
-        # self.decoder = Decoder(1, 3) 
+        self.encoder1 = Encoder(3, 1)
+        self.encoder2 = Encoder(3, 1)
+        self.decoder = Decoder(1, 3) 
 
-        self.encoder1= Inception(3 , 3)
-        self.encoder2 = Inception(3 , 3)
-        self.decoder = Decoder(12 , 3)
+        # self.encoder1= Inception(3 , 3)
+        # self.encoder2 = Inception(3 , 3)
+        # self.decoder = Decoder(12 , 3)
 
 
         self.l2norm = Normalize(2)     
