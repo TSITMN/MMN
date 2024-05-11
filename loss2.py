@@ -1,3 +1,11 @@
+# https://github.com/hijune6/Hetero-center-triplet-loss-for-VT-Re-ID/blob/main/loss.py
+import torch
+import torch.nn as nn
+from torch.nn import init
+from resnet import resnet50, resnet18
+import torch.nn.functional as F
+from resnest.torch import resnest50
+
 class CenterTripletLoss(nn.Module):
     """ Hetero-center-triplet-loss-for-VT-Re-ID
    "Parameters Sharing Exploration and Hetero-Center Triplet Loss for Visible-Thermal Person Re-Identification"
