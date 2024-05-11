@@ -55,10 +55,7 @@ def read_imgs(train_image):
         img = Image.open(img_path)
         img = img.resize((fix_image_width, fix_image_height), Image.Resampling.LANCZOS)
         pix_array = np.array(img)
-
-        #输出图片大小
-        # print(pix_array.shape , img_path[-13:-9])
-        
+        train_img.append(pix_array)
         # label
         pid = int(img_path[-13:-9])
         pid = pid2label[pid]
@@ -67,12 +64,10 @@ def read_imgs(train_image):
        
 # rgb imges
 train_img, train_label = read_imgs(files_rgb)
-print(train_img[0] , train_img[0].shape)
 np.save(data_path + 'train_rgb_resized_img.npy', train_img)
 np.save(data_path + 'train_rgb_resized_label.npy', train_label)
 
 # ir imges
 train_img, train_label = read_imgs(files_ir)
-print(train_img[0] , train_img[0].shape)
 np.save(data_path + 'train_ir_resized_img.npy', train_img)
 np.save(data_path + 'train_ir_resized_label.npy', train_label)

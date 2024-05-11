@@ -73,6 +73,27 @@ class base_resnest(nn.Module):
         x = self.base.layer4(x)
         return x
 
+class base_resnet_independent(nn.Module):
+    def __init__(self):
+        super(base_resnet_share,self).__init__()
+        self.base = base_resnet()
+    
+    def forward(self , x):
+        x = self.base.layer1(x)
+        return x
+
+class base_resnet_share(nn.Module):
+    def __init__(self):
+        super(base_resnet_share,self).__init__()
+        self.base = base_resnet()
+    
+    def forward(self , x):
+        x = self.base.layer2(x)
+        x = self.base.layer3(x)
+        x = self.base.layer4(x)
+
+        return x
+
 class CBAM(nn.Module):
     def __init__(self, in_channel, reduction=16, kernel_size=7):
         super(CBAM, self).__init__()
@@ -181,9 +202,12 @@ class FeatureExtractor(nn.Module):
                 model.relu,
                 model.maxpool
             )
-
+        self.layer1 = model.layer1
+        self.layer2 = model.layer2
     def forward(self, x):
         x = self.module(x)
+        # x = self.layer1(x)
+        # x = self.layer2(x)
         return x
 
 class embed_net(nn.Module):

@@ -20,6 +20,7 @@ from tensorboardX import SummaryWriter
 from random_erasing import RandomErasing
 from itertools import chain
 from datetime import datetime
+from loss2 import CenterTripletLoss
 
 parser = argparse.ArgumentParser(description='PyTorch Cross-Modality Training')
 parser.add_argument('--dataset', default='sysu', help='dataset name: regdb or sysu]')
@@ -45,7 +46,7 @@ parser.add_argument('--seed', default=0, type=int, metavar='t', help='random see
 parser.add_argument('--gpu', default='0', type=str, help='gpu device ids for CUDA_VISIBLE_DEVICES')
 parser.add_argument('--mode', default='all', type=str, help='all or indoor')
 parser.add_argument('--delta', default=0.5, type=float, metavar='delta', help='dcl weights, 0.2 for PCB, 0.5 for resnet50')
-parser.add_argument('--modeltest', default=False, type=int, help='model test')
+parser.add_argument('--notes', default='' , type=str, help='model train notes for log and saved models')
 
 args = parser.parse_args()
 os.environ['CUDA_VISIBLE_DEVICES'] = args.gpu
@@ -76,6 +77,8 @@ def get_nowtime():
     return '_' + now.strftime("%y_%m_%d_%H_%M_%S")
 
 suffix = dataset
+if args.notes:
+    suffix = suffix + "_" + args.notes
 if args.method=='agw':
     suffix = suffix + '_agw_p{}_n{}_lr_{}_seed_{}'.format(args.num_pos, args.batch_size, args.lr, args.seed)
 else:
@@ -122,7 +125,7 @@ transform_test = transforms.Compose([
 end = time.time()
 if dataset == 'sysu':
     # training set
-    trainset = SYSUData(data_path, transform=transform_train , model_test = args.modeltest)
+    trainset = SYSUData(data_path, transform=transform_train)
     # generate the idx of each person identity
     color_pos, thermal_pos = GenIdx(trainset.train_color_label, trainset.train_thermal_label)
 
