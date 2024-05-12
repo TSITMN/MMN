@@ -399,30 +399,17 @@ def test(epoch):
     XXdistmat_att = np.matmul(Xquery_feat_att, np.transpose(Xgall_feat_att))
     # evaluation
 
-    if args.dataset == 'regdb':
-        cmc, mAP, mINP = eval_data(-distmat, query_label, gall_label)
-        cmc_att, mAP_att, mINP_att = eval_data(-distmat_att, query_label, gall_label)
+    cmc, mAP, mINP = eval_data(-distmat, query_label, gall_label)
+    cmc_att, mAP_att, mINP_att = eval_data(-distmat_att, query_label, gall_label)
 
-        Xcmc, XmAP, XmINP = eval_data(-Xdistmat, query_label, gall_label)
-        Xcmc_att, XmAP_att, XmINP_att = eval_data(-Xdistmat_att, query_label, gall_label)
+    Xcmc, XmAP, XmINP = eval_data(-Xdistmat, query_label, gall_label)
+    Xcmc_att, XmAP_att, XmINP_att = eval_data(-Xdistmat_att, query_label, gall_label)
 
-        cmcX, mAPX, mINPX = eval_data(-distmatX, query_label, gall_label)
-        cmc_attX, mAP_attX, mINP_attX = eval_data(-distmat_attX, query_label, gall_label)
+    cmcX, mAPX, mINPX = eval_data(-distmatX, query_label, gall_label)
+    cmc_attX, mAP_attX, mINP_attX = eval_data(-distmat_attX, query_label, gall_label)
 
-        XXcmc, XXmAP, XXmINP = eval_data(-XXdistmat, query_label, gall_label)
-        XXcmc_att, XXmAP_att, XXmINP_att = eval_data(-XXdistmat_att, query_label, gall_label)
-    else :
-        cmc, mAP, mINP = eval_data(-distmat, query_label, gall_label , q_camids=query_cam , g_camids=gall_cam)
-        cmc_att, mAP_att, mINP_att = eval_data(-distmat_att, query_label, gall_label, q_camids=query_cam , g_camids=gall_cam)
-
-        Xcmc, XmAP, XmINP = eval_data(-Xdistmat, query_label, gall_label, q_camids=query_cam , g_camids=gall_cam)
-        Xcmc_att, XmAP_att, XmINP_att = eval_data(-Xdistmat_att, query_label, gall_label, q_camids=query_cam , g_camids=gall_cam)
-
-        cmcX, mAPX, mINPX = eval_data(-distmatX, query_label, gall_label, q_camids=query_cam , g_camids=gall_cam)
-        cmc_attX, mAP_attX, mINP_attX = eval_data(-distmat_attX, query_label, gall_label, q_camids=query_cam , g_camids=gall_cam)
-
-        XXcmc, XXmAP, XXmINP = eval_data(-XXdistmat, query_label, gall_label, q_camids=query_cam , g_camids=gall_cam)
-        XXcmc_att, XXmAP_att, XXmINP_att = eval_data(-XXdistmat_att, query_label, gall_label, q_camids=query_cam , g_camids=gall_cam)
+    XXcmc, XXmAP, XXmINP = eval_data(-XXdistmat, query_label, gall_label)
+    XXcmc_att, XXmAP_att, XXmINP_att = eval_data(-XXdistmat_att, query_label, gall_label)
 
     print('Evaluation Time:\t {:.3f}'.format(time.time() - start))
 

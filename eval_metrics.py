@@ -5,10 +5,6 @@ import pdb
 
 def eval_data(distmat, q_pids, g_pids, **args):
     return eval_regdb(distmat, q_pids, g_pids)
-    if args is not None:
-        return eval_sysu(distmat, q_pids, g_pids, args.get('q_camids'), args.get('g_camids'))
-    else:
-        return eval_regdb(distmat, q_pids, g_pids)
 
 
 def eval_sysu(distmat, q_pids, g_pids, q_camids, g_camids, max_rank = 20):

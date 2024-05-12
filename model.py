@@ -4,6 +4,7 @@ from torch.nn import init
 from resnet import resnet50, resnet18
 import torch.nn.functional as F
 from resnest.torch import resnest50
+from DaNetmodule import DANetHead
 
 class Normalize(nn.Module):
     def __init__(self, power=2):
@@ -224,6 +225,8 @@ class embed_net(nn.Module):
         self.encoder2 = Encoder(3, 1)
         self.decoder = Decoder(1, 3) 
 
+        self.danet = DANetHead(2048,2048)
+
         # self.encoder1= Inception(3 , 3)
         # self.encoder2 = Inception(3 , 3)
         # self.decoder = Decoder(12 , 3)
@@ -272,6 +275,7 @@ class embed_net(nn.Module):
 
         # shared block
         x = self.base_resnet(x)
+        x = self.danet(x)
         # x = self.resnest(x)
 
         x_parts = torch.chunk(x, 4, 2)
