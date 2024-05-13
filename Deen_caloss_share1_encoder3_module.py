@@ -5,6 +5,7 @@ from resnet import resnet50, resnet18
 import torch.nn.functional as F
 from resnest.torch import resnest50
 from DaNetmodule import DANetHead
+from DEENmodule import MFA_block , DEE_module
 
 class Normalize(nn.Module):
     def __init__(self, power=2):
@@ -207,7 +208,7 @@ class FeatureExtractor(nn.Module):
         self.layer2 = model.layer2
     def forward(self, x):
         x = self.module(x)
-        # x = self.layer1(x)
+        x = self.layer1(x)
         # x = self.layer2(x)
         return x
 
@@ -221,9 +222,9 @@ class embed_net(nn.Module):
         self.base_resnet = base_resnet(arch=arch)
         # self.resnest = base_resnest()
 
-        self.encoder1 = Encoder(3, 1)
-        self.encoder2 = Encoder(3, 1)
-        self.decoder = Decoder(1, 3) 
+        self.encoder1 = Encoder(3, 3)
+        self.encoder2 = Encoder(3, 3)
+        self.decoder = Decoder(3, 3) 
 
         # self.danet = DANetHead(2048,2048)
 
@@ -231,6 +232,10 @@ class embed_net(nn.Module):
         # self.encoder2 = Inception(3 , 3)
         # self.decoder = Decoder(12 , 3)
 
+        self.DEE = DEE_module(1024)
+        self.MFA1 = MFA_block(256, 64, 0)
+        self.MFA2 = MFA_block(512, 256, 1)
+        self.MFA3 = MFA_block(1024, 512, 1)
 
         self.l2norm = Normalize(2)     
         self.avgpool = nn.AdaptiveAvgPool2d((1, 1))
@@ -274,7 +279,13 @@ class embed_net(nn.Module):
             x = self.thermal_module(torch.cat((x2, gray2), dim=0))
 
         # shared block
-        x = self.base_resnet(x)
+        x_ = x
+        x = self.base_resnet.base.layer2(x_)
+        x_ = self.MFA2(x, x_)
+        x = self.base_resnet.base.layer3(x_)
+        x_ = self.MFA3(x, x_)
+        x_ = self.DEE(x_)
+        x = self.base_resnet.base.layer4(x_)
         # x = self.resnest(x)
 
         chunks = [self.avgpool(x_part) for x_part in torch.chunk(x, 4, 0)]

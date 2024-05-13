@@ -313,7 +313,7 @@ def train(epoch):
         _, predicted = out1.max(1)
         correct += (predicted.eq(labels).sum().item() / 2)
 
-        loss = loss_id + loss_tri + loss_dcl
+        loss = loss_id + loss_tri + loss_dcl + loss_cc + loss_c
         optimizer.zero_grad()
         loss.backward()
         optimizer.step()
@@ -403,17 +403,17 @@ def test(epoch):
     XXdistmat_att = np.matmul(Xquery_feat_att, np.transpose(Xgall_feat_att))
     # evaluation
 
-    cmc, mAP, mINP = eval_data(-distmat, query_label, gall_label)
-    cmc_att, mAP_att, mINP_att = eval_data(-distmat_att, query_label, gall_label)
+    cmc, mAP, mINP = eval_regdb(-distmat, query_label, gall_label)
+    cmc_att, mAP_att, mINP_att = eval_regdb(-distmat_att, query_label, gall_label)
 
-    Xcmc, XmAP, XmINP = eval_data(-Xdistmat, query_label, gall_label)
-    Xcmc_att, XmAP_att, XmINP_att = eval_data(-Xdistmat_att, query_label, gall_label)
+    Xcmc, XmAP, XmINP = eval_regdb(-Xdistmat, query_label, gall_label)
+    Xcmc_att, XmAP_att, XmINP_att = eval_regdb(-Xdistmat_att, query_label, gall_label)
 
-    cmcX, mAPX, mINPX = eval_data(-distmatX, query_label, gall_label)
-    cmc_attX, mAP_attX, mINP_attX = eval_data(-distmat_attX, query_label, gall_label)
+    cmcX, mAPX, mINPX = eval_regdb(-distmatX, query_label, gall_label)
+    cmc_attX, mAP_attX, mINP_attX = eval_regdb(-distmat_attX, query_label, gall_label)
 
-    XXcmc, XXmAP, XXmINP = eval_data(-XXdistmat, query_label, gall_label)
-    XXcmc_att, XXmAP_att, XXmINP_att = eval_data(-XXdistmat_att, query_label, gall_label)
+    XXcmc, XXmAP, XXmINP = eval_regdb(-XXdistmat, query_label, gall_label)
+    XXcmc_att, XXmAP_att, XXmINP_att = eval_regdb(-XXdistmat_att, query_label, gall_label)
 
     print('Evaluation Time:\t {:.3f}'.format(time.time() - start))
 
