@@ -20,7 +20,7 @@ from tensorboardX import SummaryWriter
 from random_erasing import RandomErasing
 from itertools import chain
 from datetime import datetime
-from loss2 import CenterTripletLoss
+from centerloss import CenterTripletLoss , CenterLoss
 
 parser = argparse.ArgumentParser(description='PyTorch Cross-Modality Training')
 parser.add_argument('--dataset', default='sysu', help='dataset name: regdb or sysu]')
