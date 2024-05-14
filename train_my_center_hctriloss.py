@@ -12,28 +12,28 @@ import torchvision
 import torchvision.transforms as transforms
 from data_loader import SYSUData, RegDBData, TestData
 from data_manager import *
-from eval_metrics import eval_sysu, eval_regdb , eval_data
-from caloss_share1_encoder3_module import embed_net
+from eval_metrics import eval_sysu, eval_regdb
+from  model_share234 import embed_net
 from utils import *
 from loss import OriTripletLoss, TriLoss, DCLoss
+from module_utils import HeteroCenterTripletLoss
+# from local_center_loss import CenterTripletLoss
+from center_loss import CenterLoss , CenterTripletLoss
 from tensorboardX import SummaryWriter
 from random_erasing import RandomErasing
-from itertools import chain
-from datetime import datetime
-from centerloss import CenterTripletLoss , CenterLoss
 
 parser = argparse.ArgumentParser(description='PyTorch Cross-Modality Training')
 parser.add_argument('--dataset', default='sysu', help='dataset name: regdb or sysu]')
-parser.add_argument('--lr', default=0.1 , type=float, help='learning rate 0.1 for sgd , 0.00035 for adam')
+parser.add_argument('--lr', default=0.1 , type=float, help='learning rate, 0.00035 for adam')
 parser.add_argument('--optim', default='sgd', type=str, help='optimizer')
 parser.add_argument('--arch', default='resnet50', type=str, help='network baseline:resnet18 or resnet50')
 parser.add_argument('--resume', '-r', default='', type=str, help='resume from checkpoint')
 parser.add_argument('--test-only', action='store_true', help='test only')
-parser.add_argument('--model_path', default='save_model/', type=str, help='model save path')
+parser.add_argument('--model_path', default='save_df/', type=str, help='model save path')
 parser.add_argument('--save_epoch', default=20, type=int, metavar='s', help='save model every 10 epochs')
-parser.add_argument('--log_path', default='log/', type=str, help='log save path')
-parser.add_argument('--vis_log_path', default='log/vis_log/', type=str, help='log save path')
-parser.add_argument('--workers', default=7, type=int, metavar='N', help='number of data loading workers (default: 4)')
+parser.add_argument('--log_path', default='log_df/', type=str, help='log save path')
+parser.add_argument('--vis_log_path', default='log_df/vis_log/', type=str, help='log save path')
+parser.add_argument('--workers', default=4, type=int, metavar='N', help='number of data loading workers (default: 4)')
 parser.add_argument('--img_w', default=192, type=int, metavar='imgw', help='img width')
 parser.add_argument('--img_h', default=384, type=int, metavar='imgh', help='img height')
 parser.add_argument('--batch-size', default=4, type=int, metavar='B', help='training batch size')
@@ -46,7 +46,6 @@ parser.add_argument('--seed', default=0, type=int, metavar='t', help='random see
 parser.add_argument('--gpu', default='0', type=str, help='gpu device ids for CUDA_VISIBLE_DEVICES')
 parser.add_argument('--mode', default='all', type=str, help='all or indoor')
 parser.add_argument('--delta', default=0.2, type=float, metavar='delta', help='dcl weights, 0.2 for PCB, 0.5 for resnet50')
-parser.add_argument('--notes', default='' , type=str, help='model train notes for log and saved models')
 
 args = parser.parse_args()
 os.environ['CUDA_VISIBLE_DEVICES'] = args.gpu
@@ -55,7 +54,7 @@ set_seed(args.seed)
 
 dataset = args.dataset
 if dataset == 'sysu':
-    data_path = './Datasets/SYSU-MM01/'
+    data_path = 'Datasets/SYSU-MM01/'
     log_path = args.log_path + 'sysu_log/'
     test_mode = [1, 2]  # thermal to visible
 elif dataset == 'regdb':
@@ -72,13 +71,7 @@ if not os.path.isdir(checkpoint_path):
 if not os.path.isdir(args.vis_log_path):
     os.makedirs(args.vis_log_path)
 
-def get_nowtime():
-    now = datetime.now()
-    return '_' + now.strftime("%y_%m_%d_%H_%M_%S")
-
 suffix = dataset
-if args.notes:
-    suffix = suffix + "_" + args.notes
 if args.method=='agw':
     suffix = suffix + '_agw_p{}_n{}_lr_{}_seed_{}'.format(args.num_pos, args.batch_size, args.lr, args.seed)
 else:
@@ -91,9 +84,9 @@ if not args.optim == 'sgd':
 if dataset == 'regdb':
     suffix = suffix + '_trial_{}'.format(args.trial)
 
-sys.stdout = Logger(log_path + suffix + get_nowtime() + '_os.txt')
+sys.stdout = Logger(log_path + suffix + '_os.txt')
 
-vis_log_dir = args.vis_log_path + suffix + get_nowtime() +  '/'
+vis_log_dir = args.vis_log_path + suffix + '/'
 
 if not os.path.isdir(vis_log_dir):
     os.makedirs(vis_log_dir)
@@ -189,8 +182,10 @@ if len(args.resume) > 0:
 # define loss function
 criterion_id = nn.CrossEntropyLoss()
 
-loader_batch = args.batch_size * args.num_pos
-criterion_tri= OriTripletLoss(batch_size=loader_batch, margin=args.margin)
+loader_batch = args.batch_size * args.num_pos # 4*4 
+# hc_triloss
+criterion_tri= HeteroCenterTripletLoss(batch_size=loader_batch, margin=args.margin)
+#criterion_tri = OriTripletLoss(batch_size=loader_batch, margin=args.margin)
 self_critial= TriLoss(batch_size=loader_batch, margin=args.margin)
 criterion_div = DCLoss(num=2)
 center_cluster_loss = CenterTripletLoss(8, 0.3)
@@ -203,39 +198,28 @@ center_cluster_loss.to(device)
 center_loss.to(device)
 
 if args.optim == 'sgd':
-    # 生成所有bottlenecks和classifiers的参数列表
-    ignored_params = list(map(id, chain(*[b.parameters() for b in net.bottlenecks]))) \
-                   + list(map(id, chain(*[c.parameters() for c in net.classifiers])))
+    ignored_params = list(map(id, net.bottleneck1.parameters())) \
+                     + list(map(id, net.bottleneck2.parameters())) \
+                     + list(map(id, net.bottleneck3.parameters())) \
+                     + list(map(id, net.bottleneck4.parameters())) \
+                     + list(map(id, net.classifier1.parameters())) \
+                     + list(map(id, net.classifier2.parameters())) \
+                     + list(map(id, net.classifier3.parameters())) \
+                     + list(map(id, net.classifier4.parameters()))
 
-    # 通过过滤的方式，排除上述特定层的参数，获取基础参数
     base_params = filter(lambda p: id(p) not in ignored_params, net.parameters())
 
-    # 定义优化器，为不同的参数组设置不同的学习率
     optimizer = optim.SGD([
-        {'params': base_params, 'lr': 0.1 * args.lr},  # 基础参数，学习率较低
-        *[
-            {'params': b.parameters(), 'lr': args.lr} for b in net.bottlenecks
-        ],
-        *[
-            {'params': c.parameters(), 'lr': args.lr} for c in net.classifiers
-        ]
-    ], weight_decay=5e-4, momentum=0.9, nesterov=True)
-
-
-if args.optim == 'adam':
-    ignored_params = list(map(id, chain(*[b.parameters() for b in net.bottlenecks]))) \
-                   + list(map(id, chain(*[c.parameters() for c in net.classifiers])))
-
-    base_params = filter(lambda p: id(p) not in ignored_params, net.parameters())
-    optimizer = optim.Adam([
-        {'params': base_params, 'lr': 0.1 * args.lr},  # 基础参数，学习率较低
-        *[
-            {'params': b.parameters(), 'lr': args.lr} for b in net.bottlenecks
-        ],
-        *[
-            {'params': c.parameters(), 'lr': args.lr} for c in net.classifiers
-        ]
-    ], weight_decay=5e-4)
+        {'params': base_params, 'lr': 0.1 * args.lr},
+        {'params': net.bottleneck1.parameters(), 'lr': args.lr},
+        {'params': net.bottleneck2.parameters(), 'lr': args.lr},
+        {'params': net.bottleneck3.parameters(), 'lr': args.lr},
+        {'params': net.bottleneck4.parameters(), 'lr': args.lr},
+        {'params': net.classifier1.parameters(), 'lr': args.lr},
+        {'params': net.classifier2.parameters(), 'lr': args.lr},
+        {'params': net.classifier3.parameters(), 'lr': args.lr},
+        {'params': net.classifier4.parameters(), 'lr': args.lr}],
+        weight_decay=5e-4, momentum=0.9, nesterov=True)
 
 # exp_lr_scheduler = lr_scheduler.StepLR(optimizer, step_size=30, gamma=0.1)
 def adjust_learning_rate(optimizer, epoch):
@@ -265,18 +249,14 @@ def train(epoch):
     batch_time = AverageMeter()
     correct = 0
     total = 0
-
+    #
+    self_epoch = epoch 
+    #
     # switch to train mode
     net.train()
     end = time.time()
 
     for batch_idx, (input1, input2, label1, label2) in enumerate(trainloader):
-        
-        # print(batch_idx)
-        # print(input1.shape)
-        # print(label1.shape)
-        # print(input1)
-        # print(label1)
 
         labels = torch.cat((label1, label1, label2, label2), 0)
 
@@ -287,37 +267,36 @@ def train(epoch):
         data_time.update(time.time() - end)
 
 
-        feat1, feat2, feat3, feat4, out1, out2, out3, out4, rgb , m_rgb , ir , m_ir , g1 = net(input1, input2)
-
+        feat1, feat2, feat3, feat4, out1, out2, out3, out4,rgb,m_rgb,ir,m_ir, g1 = net(input1, input2)
         loss_id = (criterion_id(out1, labels) + criterion_id(out2, labels) + criterion_id(out3, labels) + criterion_id(out4, labels))*0.25
         
         lbs = torch.cat((label1, label2), 0)
         lbs = lbs.cuda()
 
-        ft11, ft12, ft13, ft14 = torch.chunk(feat1, 4, 0)
+        ft11, ft12, ft13, ft14 = torch.chunk(feat1, 4, 0)  ## rgb  中间模态rgb  ir  中间模态ir   从BatchSize分块   16 2048
         ft21, ft22, ft23, ft24 = torch.chunk(feat2, 4, 0)
         ft31, ft32, ft33, ft34 = torch.chunk(feat3, 4, 0)
         ft41, ft42, ft43, ft44 = torch.chunk(feat4, 4, 0)
+    
         ba= criterion_tri(ft11, label1)[1]
-
+ 
         loss_tri1 = (criterion_tri(torch.cat((ft11, ft13),0), lbs)[0] + criterion_tri(torch.cat((ft11, ft14),0), lbs)[0] + criterion_tri(torch.cat((ft12, ft13),0), lbs)[0] + criterion_tri(torch.cat((ft12, ft14),0), lbs)[0])/4
         loss_tri2 = (criterion_tri(torch.cat((ft21, ft23),0), lbs)[0] + criterion_tri(torch.cat((ft21, ft24),0), lbs)[0] + criterion_tri(torch.cat((ft22, ft23),0), lbs)[0] + criterion_tri(torch.cat((ft22, ft24),0), lbs)[0])/4
         loss_tri3 = (criterion_tri(torch.cat((ft31, ft33),0), lbs)[0] + criterion_tri(torch.cat((ft31, ft34),0), lbs)[0] + criterion_tri(torch.cat((ft32, ft33),0), lbs)[0] + criterion_tri(torch.cat((ft32, ft34),0), lbs)[0])/4
         loss_tri4 = (criterion_tri(torch.cat((ft41, ft43),0), lbs)[0] + criterion_tri(torch.cat((ft41, ft44),0), lbs)[0] + criterion_tri(torch.cat((ft42, ft43),0), lbs)[0] + criterion_tri(torch.cat((ft42, ft44),0), lbs)[0])/4
-        
+        ####################整体
+        loss_cc = (center_cluster_loss(torch.cat((rgb, ir),0), lbs)[0] + center_cluster_loss(torch.cat((rgb, m_rgb),0), lbs)[0] + center_cluster_loss(torch.cat((m_rgb, ir),0), lbs)[0] + center_cluster_loss(torch.cat((m_rgb, m_ir),0), lbs)[0])/4
+        loss_c  = (center_loss(torch.cat((rgb, ir),0), lbs) + center_loss(torch.cat((rgb, m_rgb),0), lbs) + center_loss(torch.cat((m_rgb, ir),0), lbs) + center_loss(torch.cat((m_rgb, m_ir),0), lbs))/4
         loss_tri = (loss_tri1 + loss_tri2 + loss_tri3 + loss_tri4)/4
         
         loss_dcl = (criterion_div(torch.cat((ft12, ft14),0)) + criterion_div(torch.cat((ft22, ft24),0)) + criterion_div(torch.cat((ft32, ft34),0)) + criterion_div(torch.cat((ft42, ft44),0)))*0.25*args.delta
 
 
-        loss_cc = (center_cluster_loss(torch.cat((rgb, ir),0), lbs)[0] + center_cluster_loss(torch.cat((rgb, m_rgb),0), lbs)[0] + center_cluster_loss(torch.cat((m_rgb, ir),0), lbs)[0] + center_cluster_loss(torch.cat((m_rgb, m_ir),0), lbs)[0])/4
-        loss_c  = (center_loss(torch.cat((rgb, ir),0), lbs) + center_loss(torch.cat((rgb, m_rgb),0), lbs) + center_loss(torch.cat((m_rgb, ir),0), lbs) + center_loss(torch.cat((m_rgb, m_ir),0), lbs))/4
-
         correct += (ba / 2)
         _, predicted = out1.max(1)
         correct += (predicted.eq(labels).sum().item() / 2)
 
-        loss = loss_id + loss_tri + loss_dcl + loss_cc + loss_c
+        loss = loss_id + loss_tri + loss_dcl + loss_cc + loss_c #+ loss_l_cc
         optimizer.zero_grad()
         loss.backward()
         optimizer.step()
@@ -418,7 +397,6 @@ def test(epoch):
 
     XXcmc, XXmAP, XXmINP = eval_regdb(-XXdistmat, query_label, gall_label)
     XXcmc_att, XXmAP_att, XXmINP_att = eval_regdb(-XXdistmat_att, query_label, gall_label)
-
     print('Evaluation Time:\t {:.3f}'.format(time.time() - start))
 
     return cmc, mAP, mINP, cmc_att, mAP_att, mINP_att, \
@@ -445,15 +423,13 @@ for epoch in range(start_epoch, 81 - start_epoch):
 
     loader_batch = args.batch_size * args.num_pos
 
-    #pin_memory=True
     trainloader = data.DataLoader(trainset, batch_size=loader_batch, \
-                                  sampler=sampler, num_workers=args.workers, drop_last=True , pin_memory=True)
+                                  sampler=sampler, num_workers=args.workers, drop_last=True)
 
     # training
     train(epoch)
 
     if epoch > 0 and epoch % 2 == 0:
-    # if True:
         print('Test Epoch: {}'.format(epoch))
     
         # testing
@@ -472,7 +448,7 @@ for epoch in range(start_epoch, 81 - start_epoch):
                 'mINP': mINP_att,
                 'epoch': epoch,
             }
-            torch.save(state, checkpoint_path + suffix + get_nowtime() + '_best.t')
+            torch.save(state, checkpoint_path + suffix + '_best.t')
     
         # save model
         if epoch > 10 and epoch % args.save_epoch == 0:
@@ -482,7 +458,7 @@ for epoch in range(start_epoch, 81 - start_epoch):
                 'mAP': mAP,
                 'epoch': epoch,
             }
-            torch.save(state, checkpoint_path + suffix + get_nowtime() + '_epoch_{}.t'.format(epoch))
+            torch.save(state, checkpoint_path + suffix + '_epoch_{}.t'.format(epoch))
     
         print('POOL:   Rank-1: {:.2%} | Rank-5: {:.2%} | Rank-10: {:.2%}| Rank-20: {:.2%}| mAP: {:.2%}| mINP: {:.2%}'.format(
             cmc[0], cmc[4], cmc[9], cmc[19], mAP, mINP))

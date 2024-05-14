@@ -4,3 +4,5 @@ save_model/
 __pycache__/
 .ipynb_checkpoints/
 .DS_Store
+log_df/
+save_df/
